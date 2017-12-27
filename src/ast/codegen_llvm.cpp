@@ -307,6 +307,16 @@ void CodegenLLVM::visit(Unop &unop)
   }
 }
 
+void CodegenLLVM::visit(FieldAccess &acc)
+{
+  // TODO
+}
+
+void CodegenLLVM::visit(Cast &cast)
+{
+  // TODO
+}
+
 void CodegenLLVM::visit(ExprStatement &expr)
 {
   expr.expr->accept(*this);
