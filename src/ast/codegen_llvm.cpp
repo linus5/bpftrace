@@ -80,7 +80,7 @@ void CodegenLLVM::visit(Builtin &builtin)
     AllocaInst *dst = b_.CreateAllocaBPF(builtin.type, builtin.ident);
     int offset = arch::arg_offset(arg_num) * sizeof(uintptr_t);
     Value *src = b_.CreateGEP(ctx_, b_.getInt64(offset));
-    b_.CreateProbeRead(dst, 8, src);
+    b_.CreateProbeRead(dst, builtin.type.size, src);
     expr_ = b_.CreateLoad(dst);
     b_.CreateLifetimeEnd(dst);
   }
@@ -89,7 +89,7 @@ void CodegenLLVM::visit(Builtin &builtin)
     AllocaInst *dst = b_.CreateAllocaBPF(builtin.type, builtin.ident);
     int offset = arch::ret_offset() * sizeof(uintptr_t);
     Value *src = b_.CreateGEP(ctx_, b_.getInt64(offset));
-    b_.CreateProbeRead(dst, 8, src);
+    b_.CreateProbeRead(dst, builtin.type.size, src);
     expr_ = b_.CreateLoad(dst);
     b_.CreateLifetimeEnd(dst);
   }
@@ -98,7 +98,7 @@ void CodegenLLVM::visit(Builtin &builtin)
     AllocaInst *dst = b_.CreateAllocaBPF(builtin.type, builtin.ident);
     int offset = arch::pc_offset() * sizeof(uintptr_t);
     Value *src = b_.CreateGEP(ctx_, b_.getInt64(offset));
-    b_.CreateProbeRead(dst, 8, src);
+    b_.CreateProbeRead(dst, builtin.type.size, src);
     expr_ = b_.CreateLoad(dst);
     b_.CreateLifetimeEnd(dst);
   }
@@ -169,19 +169,8 @@ void CodegenLLVM::visit(Call &call)
     auto args = std::get<1>(bpftrace_.printf_args_.at(printf_id));
     for (SizedType t : args)
     {
-      switch (t.type)
-      {
-        case Type::integer:
-        case Type::sym:
-        case Type::usym:
-          elements.push_back(b_.getInt64Ty());
-          break;
-        case Type::string:
-          elements.push_back(string_type);
-          break;
-        default:
-          abort();
-      }
+      llvm::Type *ty = b_.GetType(t);
+      elements.push_back(ty);
     }
     printf_struct->setBody(elements);
     int struct_size = layout_.getTypeAllocSize(printf_struct);
@@ -298,7 +287,7 @@ void CodegenLLVM::visit(Unop &unop)
     case bpftrace::Parser::token::MUL:
     {
       AllocaInst *dst = b_.CreateAllocaBPF(unop.expr->type, "deref");
-      b_.CreateProbeRead(dst, 8, expr_);
+      b_.CreateProbeRead(dst, unop.expr->type.size, expr_);
       expr_ = b_.CreateLoad(dst);
       b_.CreateLifetimeEnd(dst);
       break;

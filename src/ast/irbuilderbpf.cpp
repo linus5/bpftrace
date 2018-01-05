@@ -60,8 +60,20 @@ AllocaInst *IRBuilderBPF::CreateAllocaBPF(llvm::Type *ty, const std::string &nam
 
 AllocaInst *IRBuilderBPF::CreateAllocaBPF(const SizedType &stype, const std::string &name)
 {
+  llvm::Type *ty = GetType(stype);
+  return CreateAllocaBPF(ty, name);
+}
+
+AllocaInst *IRBuilderBPF::CreateAllocaMapKey(int bytes, const std::string &name)
+{
+  llvm::Type *ty = ArrayType::get(getInt8Ty(), bytes);
+  return CreateAllocaBPF(ty, name);
+}
+
+llvm::Type *IRBuilderBPF::GetType(const SizedType &stype)
+{
   llvm::Type *ty;
-  if (stype.type == Type::string)
+  if (stype.type == Type::string || stype.type == Type::cast)
   {
     ty = ArrayType::get(getInt8Ty(), stype.size);
   }
@@ -79,13 +91,6 @@ AllocaInst *IRBuilderBPF::CreateAllocaBPF(const SizedType &stype, const std::str
         abort();
     }
   }
-  return CreateAllocaBPF(ty, name);
-}
-
-AllocaInst *IRBuilderBPF::CreateAllocaMapKey(int bytes, const std::string &name)
-{
-  llvm::Type *ty = ArrayType::get(getInt8Ty(), bytes);
-  return CreateAllocaBPF(ty, name);
 }
 
 void IRBuilderBPF::CreateMemcpy(Value *dst, Value *src, size_t len)
