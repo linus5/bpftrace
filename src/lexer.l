@@ -38,7 +38,7 @@ header <(\\.|[_\-\./a-zA-Z0-9])*>
 {vspace}+               { loc.lines(yyleng); loc.step(); }
 "//".*$  // Comments
 
-nsecs|pid|tid|uid|gid|cpu|retval|stack|ustack|comm|func|arg[0-9] {
+nsecs|pid|tid|uid|gid|cpu|retval|sp|stack|ustack|comm|func|arg[0-9] {
                           return Parser::make_BUILTIN(yytext, loc); }
 quantize|count|delete|str|printf {
                           return Parser::make_BUILTIN(yytext, loc); }

@@ -191,6 +191,7 @@ Variables:
 - `ustack` - User stack trace
 - `arg0`, `arg1`, ... etc. - Arguments to the function being traced
 - `retval` - Return value from function being traced
+- `sp` - Stack pointer
 - `func` - Name of the function currently being traced
 
 Functions:
