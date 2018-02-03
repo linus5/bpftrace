@@ -37,6 +37,7 @@ public:
   Type type;
   size_t size;
   std::string cast_type;
+  bool internal = false;
 
   bool operator==(const SizedType &t) const;
 };

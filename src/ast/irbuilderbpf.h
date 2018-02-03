@@ -20,7 +20,7 @@ public:
 
   AllocaInst *CreateAllocaBPF(llvm::Type *ty, const std::string &name="");
   AllocaInst *CreateAllocaBPF(const SizedType &stype, const std::string &name="");
-  AllocaInst *CreateAllocaMapKey(int bytes, const std::string &name="");
+  AllocaInst *CreateAllocaBPF(int bytes, const std::string &name="");
   llvm::Type *GetType(const SizedType &stype);
   void        CreateMemcpy(Value *dst, Value *src, size_t len);
   void        CreateMemset(Value *dst, Value *val, size_t len);

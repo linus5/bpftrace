@@ -273,32 +273,109 @@ void CodegenLLVM::visit(Binop &binop)
 
 void CodegenLLVM::visit(Unop &unop)
 {
-  assert(unop.expr->type.type == Type::integer);
   unop.expr->accept(*this);
 
-  switch (unop.op) {
-    case bpftrace::Parser::token::LNOT: expr_ = b_.CreateNot(expr_); break;
-    case bpftrace::Parser::token::BNOT: expr_ = b_.CreateNeg(expr_); break;
-    case bpftrace::Parser::token::MUL:
-    {
-      AllocaInst *dst = b_.CreateAllocaBPF(unop.expr->type, "deref");
-      b_.CreateProbeRead(dst, unop.expr->type.size, expr_);
-      expr_ = b_.CreateLoad(dst);
-      b_.CreateLifetimeEnd(dst);
-      break;
+  if (unop.expr->type.type == Type::integer)
+  {
+    switch (unop.op) {
+      case bpftrace::Parser::token::LNOT: expr_ = b_.CreateNot(expr_); break;
+      case bpftrace::Parser::token::BNOT: expr_ = b_.CreateNeg(expr_); break;
+      case bpftrace::Parser::token::MUL:
+      {
+        AllocaInst *dst = b_.CreateAllocaBPF(unop.expr->type, "deref");
+        b_.CreateProbeRead(dst, unop.expr->type.size, expr_);
+        expr_ = b_.CreateLoad(dst);
+        b_.CreateLifetimeEnd(dst);
+        break;
+      }
+      default: abort();
     }
-    default: abort();
+  }
+  else if (unop.expr->type.type == Type::cast)
+  {
+//    if (unop.op != Parser::token::MUL)
+//      abort();
+//
+//    std::string cast_type = unop.expr->type.cast_type;
+//    cast_type.pop_back();
+//    int size = bpftrace_.structs_[cast_type].size;
+//    AllocaInst *struct_val = b_.CreateAllocaBPF(size, unop.expr->type.cast_type + "_val");
+//    b_.CreateProbeRead(struct_val, unop.expr->type.size, expr_);
+//    expr_ = struct_val;
+  }
+  else
+  {
+    abort();
   }
 }
 
 void CodegenLLVM::visit(FieldAccess &acc)
 {
-  // TODO
+  assert(acc.expr->type.type == Type::cast);
+  acc.expr->accept(*this);
+
+  std::string cast_type = acc.expr->type.cast_type;
+  if (cast_type.back() == '*')
+    cast_type.pop_back();
+  auto field = bpftrace_.structs_[cast_type].fields[acc.field];
+
+  if (acc.expr->type.internal)
+  {
+    // The struct we are reading from has already been pulled into
+    // BPF-memory, e.g. by being stored in a map.
+    // Just read from the correct offset of expr_
+
+    Value *src = b_.CreateGEP(expr_, {b_.getInt64(0), b_.getInt64(field.offset)});
+
+    if (field.type.type == Type::string)
+    {
+      expr_ = src;
+    }
+    else
+    {
+      expr_ = b_.CreateLoad(b_.GetType(field.type), src);
+    }
+  }
+  else
+  {
+    // The struct we are reading from has not been pulled into BPF-memory,
+    // so expr_ will contain an external pointer to the start of the struct
+
+    Value *src = b_.CreateAdd(expr_, b_.getInt64(field.offset));
+
+    if (field.type.type == Type::cast && field.type.cast_type.back() != '*' ||
+        acc.type.type == Type::cast && acc.type.cast_type.back() == '*') // TODO is this second type check needed?
+    {
+      // struct X
+      // {
+      //   struct Y y;
+      // };
+      //
+      // We are trying to access an embedded struct, e.g. "x.y"
+      //
+      // Instead of copying the entire struct Y in, we'll just store it as a
+      // pointer internally and dereference later when necessary.
+      expr_ = src;
+    }
+    else if (field.type.type == Type::string)
+    {
+      AllocaInst *dst = b_.CreateAllocaBPF(field.type, cast_type + "." + acc.field);
+      b_.CreateProbeRead(dst, field.type.size, src);
+      expr_ = dst;
+    }
+    else
+    {
+      AllocaInst *dst = b_.CreateAllocaBPF(field.type, cast_type + "." + acc.field);
+      b_.CreateProbeRead(dst, field.type.size, src);
+      expr_ = b_.CreateLoad(dst);
+      b_.CreateLifetimeEnd(dst);
+    }
+  }
 }
 
 void CodegenLLVM::visit(Cast &cast)
 {
-  // TODO
+  cast.expr->accept(*this);
 }
 
 void CodegenLLVM::visit(ExprStatement &expr)
@@ -318,9 +395,17 @@ void CodegenLLVM::visit(AssignMapStatement &assignment)
   Value *val, *expr;
   expr = expr_;
   AllocaInst *key = getMapKey(map);
-  if (assignment.expr->type.type == Type::string)
+  if (map.type.type == Type::string)
   {
     val = expr;
+  }
+  else if (map.type.type == Type::cast) // TODO check for *
+  {
+    // expr currently contains a pointer to the struct
+    // We now want to read the entire struct in, so we can save it
+    AllocaInst *dst = b_.CreateAllocaBPF(map.type, map.ident + "_val");
+    b_.CreateProbeRead(dst, map.type.size, expr);
+    val = dst;
   }
   else
   {
@@ -330,7 +415,7 @@ void CodegenLLVM::visit(AssignMapStatement &assignment)
   b_.CreateMapUpdateElem(map, key, val);
   b_.CreateLifetimeEnd(key);
   if (!assignment.expr->is_variable)
-    b_.CreateLifetimeEnd(val);
+    b_.CreateLifetimeEnd(val); // TODO check this is still right for casts
 }
 
 void CodegenLLVM::visit(AssignVarStatement &assignment)
@@ -413,7 +498,7 @@ AllocaInst *CodegenLLVM::getMapKey(Map &map)
     {
       size += expr->type.size;
     }
-    key = b_.CreateAllocaMapKey(size, map.ident + "_key");
+    key = b_.CreateAllocaBPF(size, map.ident + "_key");
 
     int offset = 0;
     for (Expression *expr : *map.vargs) {
@@ -443,7 +528,7 @@ AllocaInst *CodegenLLVM::getQuantizeMapKey(Map &map, Value *log2)
     {
       size += expr->type.size;
     }
-    key = b_.CreateAllocaMapKey(size, map.ident + "_key");
+    key = b_.CreateAllocaBPF(size, map.ident + "_key");
 
     int offset = 0;
     for (Expression *expr : *map.vargs) {
