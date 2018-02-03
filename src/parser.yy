@@ -193,7 +193,7 @@ expr : INT             { $$ = new ast::Integer($1); }
      | BNOT expr       { $$ = new ast::Unop(token::BNOT, $2); }
      | MUL  expr %prec DEREF { $$ = new ast::Unop(token::MUL,  $2); }
      | expr DOT ident  { $$ = new ast::FieldAccess($1, $3); }
-     | expr PTR ident  { $$ = new ast::FieldAccess(new ast::Unop(token::MUL, $1), $3); }
+     | expr PTR ident  { $$ = new ast::FieldAccess($1, $3); }
      | "(" type ")" expr %prec CAST  { $$ = new ast::Cast($2, $4); }
      ;
 

@@ -281,7 +281,12 @@ void SemanticAnalyser::visit(Unop &unop)
     std::string cast_type = unop.expr->type.cast_type;
     if (cast_type.back() == '*') {
       cast_type.pop_back();
-      unop.type = SizedType(Type::cast, 8, cast_type);
+      if (bpftrace_.structs_.count(cast_type) == 0) {
+        err_ << "Unknown struct/union: '" << cast_type << "'" << std::endl;
+        return;
+      }
+      int cast_size = bpftrace_.structs_[cast_type].size;
+      unop.type = SizedType(Type::cast, cast_size, cast_type);
     }
     else {
       err_ << "Can not dereference struct/union of type '" << cast_type << "'. "
@@ -308,9 +313,14 @@ void SemanticAnalyser::visit(FieldAccess &acc)
 
   std::string cast_type = acc.expr->type.cast_type;
   if (cast_type.back() == '*') {
-    err_ << "Can not access field '" << acc.field << "' on type '"
-         << cast_type << "'. Try dereferencing it first, or using '->'"
-         << std::endl;
+    cast_type.pop_back();
+//    err_ << "Can not access field '" << acc.field << "' on type '"
+//         << cast_type << "'. Try dereferencing it first, or using '->'"
+//         << std::endl;
+//    return;
+  }
+  if (bpftrace_.structs_.count(cast_type) == 0) {
+    err_ << "Unknown struct/union: '" << cast_type << "'" << std::endl;
     return;
   }
 
@@ -391,6 +401,7 @@ void SemanticAnalyser::visit(AssignMapStatement &assignment)
     }
     else {
       map_val_[map_ident].cast_type = cast_type;
+      map_val_[map_ident].internal = true;
     }
   }
 }
