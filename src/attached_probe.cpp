@@ -162,6 +162,8 @@ static unsigned kernel_version(int attempt)
       unsigned x, y, z;
       sscanf(utsname.release, "%d.%d.%d", &x, &y, &z);
       return (x << 16) + (y << 8) + z;
+    default:
+      abort();
   }
 }
 
