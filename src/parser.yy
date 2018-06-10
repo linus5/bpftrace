@@ -24,6 +24,13 @@ class Node;
 } // namespace ast
 } // namespace bpftrace
 #include "ast.h"
+
+struct TypeDeclarator
+{
+  std::string name;
+  bool is_ptr;
+  int array_size = 1;
+};
 }
 
 %{
@@ -66,10 +73,13 @@ void yyerror(bpftrace::Driver &driver, const char *s);
   LNOT     "!"
   BNOT     "~"
   INCLUDE  "#include"
+  STRUCT   "struct"
+  UNION    "union"
   DOT      "."
   PTR      "->"
 ;
 
+%token <std::string> TYPE "type specifier"
 %token <std::string> BUILTIN "builtin"
 %token <std::string> IDENT "identifier"
 %token <std::string> PATH "path"
@@ -81,6 +91,10 @@ void yyerror(bpftrace::Driver &driver, const char *s);
 
 %type <ast::IncludeList *> includes
 %type <ast::Include *> include
+%type <ast::StructList *> structs
+%type <ast::Struct *> struct
+%type <ast::FieldList *> fields
+%type <ast::FieldList *> field
 %type <ast::ProbeList *> probes
 %type <ast::Probe *> probe
 %type <ast::Predicate *> pred
@@ -94,8 +108,11 @@ void yyerror(bpftrace::Driver &driver, const char *s);
 %type <ast::AttachPointList *> attach_points
 %type <ast::AttachPoint *> attach_point
 %type <std::string> wildcard
-%type <std::string> type
+%type <std::string> cast_type
 %type <std::string> ident
+%type <std::string> type_specifier
+%type <std::vector<TypeDeclarator>> field_names
+%type <TypeDeclarator> declarator direct_declarator
 
 %right ASSIGN
 %left LOR
@@ -114,7 +131,12 @@ void yyerror(bpftrace::Driver &driver, const char *s);
 
 %%
 
-program : includes probes { driver.root_ = new ast::Program($1, $2); }
+program : includes structs probes
+        {
+          driver.includes_ = $1;
+          driver.structs_ = $2;
+          driver.root_ = new ast::Program($3);
+        }
         ;
 
 includes : includes include { $$ = $1; $1->push_back($2); }
@@ -124,6 +146,45 @@ includes : includes include { $$ = $1; $1->push_back($2); }
 include : INCLUDE STRING { $$ = new ast::Include($2, false); }
         | INCLUDE HEADER { $$ = new ast::Include($2.substr(1, $2.size()-2), true); }
         ;
+
+structs : structs struct { $$ = $1; $1->push_back($2); }
+        |                { $$ = new ast::StructList; }
+        ;
+
+struct : struct_or_union IDENT "{" fields "}" { $$ = new ast::Struct($2, $4); }
+       ;
+
+struct_or_union : STRUCT | UNION ;
+
+fields : fields field ";" { $$ = $1; $1->insert($1->end(), $2->begin(), $2->end()); }
+       |                  { $$ = new ast::FieldList; }
+       ;
+
+field : type_specifier field_names
+      {
+        $$ = new ast::FieldList;
+        for (auto &decl : $2)
+        {
+          $$->push_back(new ast::Field($1.c_str(), decl.name.c_str(), decl.is_ptr, decl.array_size));
+        }
+      }
+      ;
+
+type_specifier : TYPE                  { $$ = $1; }
+               | struct_or_union IDENT { $$ = $2; }
+               ;
+
+field_names : field_names "," declarator { $$ = $1; $$.push_back($3); }
+            | declarator                 { $$.push_back($1); }
+            ;
+
+declarator : direct_declarator     { $$ = $1; $$.is_ptr = false; }
+           | MUL direct_declarator { $$ = $2; $$.is_ptr = true; }
+           ;
+
+direct_declarator : IDENT                         { $$.name = $1; }
+                  | direct_declarator "[" INT "]" { $$ = $1; $$.array_size = $3; }
+                  ;
 
 probes : probes probe { $$ = $1; $1->push_back($2); }
        | probe        { $$ = new ast::ProbeList; $$->push_back($1); }
@@ -194,12 +255,12 @@ expr : INT             { $$ = new ast::Integer($1); }
      | MUL  expr %prec DEREF { $$ = new ast::Unop(token::MUL,  $2); }
      | expr DOT ident  { $$ = new ast::FieldAccess($1, $3); }
      | expr PTR ident  { $$ = new ast::FieldAccess(new ast::Unop(token::MUL, $1), $3); }
-     | "(" type ")" expr %prec CAST  { $$ = new ast::Cast($2, $4); }
+     | "(" cast_type ")" expr %prec CAST  { $$ = new ast::Cast($2, $4); }
      ;
 
-type : IDENT     { $$ = $1; }
-     | IDENT MUL { $$ = $1 + "*"; }
-     ;
+cast_type : IDENT     { $$ = $1; }
+          | IDENT MUL { $$ = $1 + "*"; }
+          ;
 
 ident : IDENT   { $$ = $1; }
       | BUILTIN { $$ = $1; }

@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
   if (debug)
   {
     ast::Printer p(std::cout);
-    driver.root_->accept(p);
+    p.print_all(driver);
   }
 
   ast::SemanticAnalyser semantics(driver.root_, bpftrace);

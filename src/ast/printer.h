@@ -4,6 +4,7 @@
 #include "ast.h"
 
 namespace bpftrace {
+class Driver;
 namespace ast {
 
 class Printer : public Visitor {
@@ -26,13 +27,18 @@ public:
   void visit(Predicate &pred) override;
   void visit(AttachPoint &ap) override;
   void visit(Probe &probe) override;
-  void visit(Include &include) override;
   void visit(Program &program) override;
+
+  void print_all(Driver &driver);
 
   int depth_ = 0;
 
 private:
   std::ostream &out_;
+
+  void print_include(Include &include);
+  void print_field(Field &field);
+  void print_struct(Struct &cstruct);
 };
 
 } // namespace ast

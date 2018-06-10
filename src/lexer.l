@@ -38,8 +38,12 @@ header <(\\.|[_\-\./a-zA-Z0-9])*>
 {vspace}+               { loc.lines(yyleng); loc.step(); }
 "//".*$  // Comments
 
+void|char|short|int|long|float|double|signed|unsigned {
+                          return Parser::make_TYPE(yytext, loc); }
 pid|tid|uid|gid|nsecs|cpu|comm|stack|ustack|arg[0-9]|retval|func {
                           return Parser::make_BUILTIN(yytext, loc); }
+struct                  { return Parser::make_STRUCT(loc); }
+union                   { return Parser::make_UNION(loc); }
 {ident}                 { return Parser::make_IDENT(yytext, loc); }
 {path}                  { return Parser::make_PATH(yytext, loc); }
 {header}                { return Parser::make_HEADER(yytext, loc); }

@@ -17,7 +17,7 @@ void test(const std::string &input, const std::string &output)
 
   std::ostringstream out;
   Printer printer(out);
-  driver.root_->accept(printer);
+  printer.print_all(driver);
   EXPECT_EQ(output, out.str());
 }
 
@@ -327,8 +327,8 @@ TEST(Parser, short_map_name)
 TEST(Parser, include)
 {
   test("#include <stdio.h> kprobe:sys_read { @x = 1 }",
+      "#include <stdio.h>\n"
       "Program\n"
-      " #include <stdio.h>\n"
       " kprobe:sys_read\n"
       "  =\n"
       "   map: @x\n"
@@ -338,8 +338,8 @@ TEST(Parser, include)
 TEST(Parser, include_quote)
 {
   test("#include \"stdio.h\" kprobe:sys_read { @x = 1 }",
+      "#include \"stdio.h\"\n"
       "Program\n"
-      " #include \"stdio.h\"\n"
       " kprobe:sys_read\n"
       "  =\n"
       "   map: @x\n"
@@ -349,10 +349,10 @@ TEST(Parser, include_quote)
 TEST(Parser, include_multiple)
 {
   test("#include <stdio.h> #include \"blah\" #include <foo.h> kprobe:sys_read { @x = 1 }",
+      "#include <stdio.h>\n"
+      "#include \"blah\"\n"
+      "#include <foo.h>\n"
       "Program\n"
-      " #include <stdio.h>\n"
-      " #include \"blah\"\n"
-      " #include <foo.h>\n"
       " kprobe:sys_read\n"
       "  =\n"
       "   map: @x\n"
@@ -505,6 +505,81 @@ TEST(Parser, field_access_builtin)
       "   dereference\n"
       "    map: @x\n"
       "   count\n");
+}
+
+TEST(Parser, cstruct_int)
+{
+  test("struct Foo { int n; } kprobe:sys_read { 1 }",
+      "struct Foo\n"
+      " int n\n"
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  int: 1\n");
+}
+
+TEST(Parser, cstruct_int_ptr)
+{
+  test("struct Foo { int *n; } kprobe:sys_read { 1 }",
+      "struct Foo\n"
+      " int* n\n"
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  int: 1\n");
+}
+
+TEST(Parser, cstruct_int_multi)
+{
+  test("struct Foo { int n; int a,*b,c; } kprobe:sys_read { 1 }",
+      "struct Foo\n"
+      " int n\n"
+      " int a\n"
+      " int* b\n"
+      " int c\n"
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  int: 1\n");
+}
+
+TEST(Parser, cstruct_char_ptr)
+{
+  test("struct Foo { char *str; } kprobe:sys_read { 1 }",
+      "struct Foo\n"
+      " char* str\n"
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  int: 1\n");
+}
+
+TEST(Parser, cstruct_char_array_ptr)
+{
+  test("struct Foo { char *str[32]; } kprobe:sys_read { 1 }",
+      "struct Foo\n"
+      " char*[32] str\n"
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  int: 1\n");
+}
+
+TEST(Parser, cstruct_char_array)
+{
+  test("struct Foo { char str[32]; } kprobe:sys_read { 1 }",
+      "struct Foo\n"
+      " char[32] str\n"
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  int: 1\n");
+}
+
+TEST(Parser, cstruct_containing_struct)
+{
+  test("struct Foo { struct Bar b; struct Car *c,d; } kprobe:sys_read { 1 }",
+      "struct Foo\n"
+      " Bar b\n"
+      " Car* c\n"
+      " Car d\n"
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  int: 1\n");
 }
 
 } // namespace parser

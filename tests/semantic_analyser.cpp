@@ -40,6 +40,18 @@ void test(Driver &driver, const std::string &input, int expected_result=0)
 
 void test(const std::string &input, int expected_result=0)
 {
+  // struct type1
+  // {
+  //   int field;
+  //   char *mystr;
+  //   struct type2 *type2ptr;
+  //   struct type2 type2;
+  // }
+  //
+  // struct type2
+  // {
+  //   int field;
+  // }
   Field field = { SizedType(Type::integer, 8), 0 };
   Field mystr = { SizedType(Type::string, 8), 8 };
   Field type2_field_ptr = { SizedType(Type::cast, 8, "type2*"), 16 };

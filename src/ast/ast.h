@@ -199,26 +199,45 @@ public:
 };
 using ProbeList = std::vector<Probe *>;
 
-class Include : public Node {
-public:
-  explicit Include(const std::string &file, bool system_header)
-    : file(file), system_header(system_header) { }
-  std::string file;
-  bool system_header;
-
-  void accept(Visitor &v) override;
-};
-using IncludeList = std::vector<Include *>;
-
 class Program : public Node {
 public:
-  Program(IncludeList *includes, ProbeList *probes)
-    : includes(includes), probes(probes) { }
-  IncludeList *includes;
+  explicit Program(ProbeList *probes) : probes(probes) { }
   ProbeList *probes;
 
   void accept(Visitor &v) override;
 };
+
+class Include {
+public:
+  Include(const std::string &file, bool system_header)
+    : file(file), system_header(system_header) { }
+  std::string file;
+  bool system_header;
+};
+using IncludeList = std::vector<Include *>;
+
+class Field {
+public:
+  Field(std::string &type, std::string name)
+    : type(type), name(name) { }
+  Field(const std::string &type, const std::string &name, bool is_ptr, int array_size)
+    : type(type), name(name), is_ptr(is_ptr), array_size(array_size) { }
+
+  std::string type;
+  std::string name;
+  bool is_ptr;
+  int array_size;
+};
+using FieldList = std::vector<Field *>;
+
+class Struct {
+public:
+  Struct(const std::string &type, FieldList *fields)
+    : type(type), fields(fields) { }
+  std::string type;
+  FieldList *fields;
+};
+using StructList = std::vector<Struct *>;
 
 class Visitor {
 public:
@@ -239,7 +258,6 @@ public:
   virtual void visit(Predicate &pred) = 0;
   virtual void visit(AttachPoint &ap) = 0;
   virtual void visit(Probe &probe) = 0;
-  virtual void visit(Include &include) = 0;
   virtual void visit(Program &program) = 0;
 };
 

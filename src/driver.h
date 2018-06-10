@@ -24,6 +24,8 @@ public:
   void error(const std::string &m);
 
   ast::Program *root_;
+  ast::StructList *structs_;
+  ast::IncludeList *includes_;
 
 private:
   std::unique_ptr<Parser> parser_;

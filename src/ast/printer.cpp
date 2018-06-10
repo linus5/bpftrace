@@ -2,6 +2,7 @@
 
 #include "printer.h"
 #include "ast.h"
+#include "driver.h"
 
 namespace bpftrace {
 namespace ast {
@@ -167,7 +168,27 @@ void Printer::visit(Probe &probe)
   --depth_;
 }
 
-void Printer::visit(Include &include)
+void Printer::visit(Program &program)
+{
+  std::string indent(depth_, ' ');
+  out_ << indent << "Program" << std::endl;
+
+  ++depth_;
+  for (Probe *probe : *program.probes)
+    probe->accept(*this);
+  --depth_;
+}
+
+void Printer::print_all(Driver &driver)
+{
+  for (Include *include : *driver.includes_)
+    print_include(*include);
+  for (Struct *cstruct : *driver.structs_)
+    print_struct(*cstruct);
+  driver.root_->accept(*this);
+}
+
+void Printer::print_include(Include &include)
 {
   std::string indent(depth_, ' ');
   if (include.system_header)
@@ -176,16 +197,25 @@ void Printer::visit(Include &include)
     out_ << indent << "#include \"" << include.file << "\"" << std::endl;
 }
 
-void Printer::visit(Program &program)
+void Printer::print_field(Field &field)
 {
   std::string indent(depth_, ' ');
-  out_ << indent << "Program" << std::endl;
+  out_ << indent << field.type;
+  if (field.is_ptr)
+    out_ << "*";
+  if (field.array_size > 1)
+    out_ << "[" << field.array_size << "]";
+  out_ << " " << field.name << std::endl;
+}
+
+void Printer::print_struct(Struct &cstruct)
+{
+  std::string indent(depth_, ' ');
+  out_ << indent << "struct " << cstruct.type << std::endl;
 
   ++depth_;
-  for (Include *include : *program.includes)
-    include->accept(*this);
-  for (Probe *probe : *program.probes)
-    probe->accept(*this);
+  for (Field *field : *cstruct.fields)
+    print_field(*field);
   --depth_;
 }
 
